@@ -21,7 +21,6 @@
   "cnn" : True
   "jit" : True
   
-
 "ANNEAL_LR": True
 "SEED": 30
 "NUM_SEEDS": 1

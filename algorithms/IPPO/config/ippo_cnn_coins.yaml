@@ -21,12 +21,11 @@
   "cnn" : True
   "jit" : True
 
-TUNE: false
-
 "ANNEAL_LR": True
 "SEED": 30
 "NUM_SEEDS": 1
-"True": True
+#"True": True   missing?
+"TUNE": True
 
 "REWARD": "individual" # individual; common
 "GIF_NUM_FRAMES": 250

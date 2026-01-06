@@ -13,3 +13,26 @@ Dependency resolution and installation
 uv lock
 uv sync --no-install-project --group dev
 ```
+> --no-install-project
+→ Skips editable installation since this project will be sourced via PYTHONPATH
+> --group dev
+→ Installs all necessary dependencies for research/learning code
+
+import test
+```
+PYTHONPATH=. uv run python -c "import socialjax; print(socialjax.__file__)"
+```
+If you see the path to socialjax/__init__.py in the project directory when running this, it confirms that the sources are being correctly referenced from the uv environment.
+The CUDA-related warnings that appear only indicate CPU fallback and don't affect operation.
+
+run test(only use cpu)
+```
+PYTHONPATH=. uv run python algorithms/IPPO/ippo_cnn_coins.py;
+```
+
+
+
+
+---
+This software includes modified code from SocialJax.
+Changes were made by romanohu.

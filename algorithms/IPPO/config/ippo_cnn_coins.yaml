@@ -20,7 +20,8 @@
   "shared_rewards" : False # Attention: switch to False for individual rewards 
   "cnn" : True
   "jit" : True
-  
+
+TUNE: false
 
 "ANNEAL_LR": True
 "SEED": 30

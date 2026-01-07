@@ -30,7 +30,11 @@ run test(only use cpu)
 PYTHONPATH=. uv run python algorithms/IPPO/ippo_cnn_coins.py;
 ```
 
-
+If you want to use GPU, please install JAX's GPU-enabled version.
+gpu test
+```
+v run python -c "import jax; print('backend:', jax.default_backend()); print('devices:', jax.devices())"
+```
 
 
 ---

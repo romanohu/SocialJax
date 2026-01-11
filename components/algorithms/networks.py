@@ -9,7 +9,7 @@ import flax.linen as nn
 import jax.numpy as jnp
 
 from components.models.decoder import MLPDecoder, ValueDecoder
-from components.models.encoder import CNNEncoder, MLPEncoder
+from components.models.encoder import CNNEncoder, MLPEncoder, TransformerEncoder
 
 
 @dataclass(frozen=True)
@@ -19,6 +19,12 @@ class EncoderConfig:
     cnn_channels: Sequence[int] = (32, 32, 32)
     cnn_kernel_sizes: Sequence[Tuple[int, int]] = ((5, 5), (3, 3), (3, 3))
     cnn_dense_size: int = 64
+    encoder_type: str = "cnn"
+    transformer_patch_size: int = 4
+    transformer_layers: int = 2
+    transformer_heads: int = 4
+    transformer_mlp_dim: int = 128
+    transformer_embed_dim: int = 64
 
 
 def _is_image_obs(obs_shape: Sequence[int]) -> bool:
@@ -32,12 +38,22 @@ class ActorCritic(nn.Module):
     @nn.compact
     def __call__(self, x: jnp.ndarray):
         if _is_image_obs(x.shape[1:]):
-            encoder = CNNEncoder(
-                channels=self.encoder_cfg.cnn_channels,
-                kernel_sizes=self.encoder_cfg.cnn_kernel_sizes,
-                activation=self.encoder_cfg.activation,
-                dense_size=self.encoder_cfg.cnn_dense_size,
-            )
+            if self.encoder_cfg.encoder_type == "transformer":
+                encoder = TransformerEncoder(
+                    patch_size=self.encoder_cfg.transformer_patch_size,
+                    num_layers=self.encoder_cfg.transformer_layers,
+                    num_heads=self.encoder_cfg.transformer_heads,
+                    mlp_dim=self.encoder_cfg.transformer_mlp_dim,
+                    embed_dim=self.encoder_cfg.transformer_embed_dim,
+                    activation=self.encoder_cfg.activation,
+                )
+            else:
+                encoder = CNNEncoder(
+                    channels=self.encoder_cfg.cnn_channels,
+                    kernel_sizes=self.encoder_cfg.cnn_kernel_sizes,
+                    activation=self.encoder_cfg.activation,
+                    dense_size=self.encoder_cfg.cnn_dense_size,
+                )
         else:
             encoder = MLPEncoder(
                 hidden_sizes=self.encoder_cfg.mlp_sizes,
@@ -68,12 +84,22 @@ class Actor(nn.Module):
     @nn.compact
     def __call__(self, x: jnp.ndarray):
         if _is_image_obs(x.shape[1:]):
-            encoder = CNNEncoder(
-                channels=self.encoder_cfg.cnn_channels,
-                kernel_sizes=self.encoder_cfg.cnn_kernel_sizes,
-                activation=self.encoder_cfg.activation,
-                dense_size=self.encoder_cfg.cnn_dense_size,
-            )
+            if self.encoder_cfg.encoder_type == "transformer":
+                encoder = TransformerEncoder(
+                    patch_size=self.encoder_cfg.transformer_patch_size,
+                    num_layers=self.encoder_cfg.transformer_layers,
+                    num_heads=self.encoder_cfg.transformer_heads,
+                    mlp_dim=self.encoder_cfg.transformer_mlp_dim,
+                    embed_dim=self.encoder_cfg.transformer_embed_dim,
+                    activation=self.encoder_cfg.activation,
+                )
+            else:
+                encoder = CNNEncoder(
+                    channels=self.encoder_cfg.cnn_channels,
+                    kernel_sizes=self.encoder_cfg.cnn_kernel_sizes,
+                    activation=self.encoder_cfg.activation,
+                    dense_size=self.encoder_cfg.cnn_dense_size,
+                )
         else:
             encoder = MLPEncoder(
                 hidden_sizes=self.encoder_cfg.mlp_sizes,
@@ -96,12 +122,22 @@ class Critic(nn.Module):
     @nn.compact
     def __call__(self, x: jnp.ndarray):
         if _is_image_obs(x.shape[1:]):
-            encoder = CNNEncoder(
-                channels=self.encoder_cfg.cnn_channels,
-                kernel_sizes=self.encoder_cfg.cnn_kernel_sizes,
-                activation=self.encoder_cfg.activation,
-                dense_size=self.encoder_cfg.cnn_dense_size,
-            )
+            if self.encoder_cfg.encoder_type == "transformer":
+                encoder = TransformerEncoder(
+                    patch_size=self.encoder_cfg.transformer_patch_size,
+                    num_layers=self.encoder_cfg.transformer_layers,
+                    num_heads=self.encoder_cfg.transformer_heads,
+                    mlp_dim=self.encoder_cfg.transformer_mlp_dim,
+                    embed_dim=self.encoder_cfg.transformer_embed_dim,
+                    activation=self.encoder_cfg.activation,
+                )
+            else:
+                encoder = CNNEncoder(
+                    channels=self.encoder_cfg.cnn_channels,
+                    kernel_sizes=self.encoder_cfg.cnn_kernel_sizes,
+                    activation=self.encoder_cfg.activation,
+                    dense_size=self.encoder_cfg.cnn_dense_size,
+                )
         else:
             encoder = MLPEncoder(
                 hidden_sizes=self.encoder_cfg.mlp_sizes,

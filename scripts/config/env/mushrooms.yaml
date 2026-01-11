@@ -8,7 +8,6 @@ env_kwargs:
   regrow_rate_green: 0.4
   regrow_rate_blue: 0.6
   regrow_rate_orange: 1.0
-  cnn: true
   jit: true
 wandb:
   project: socialjax_components_mushrooms

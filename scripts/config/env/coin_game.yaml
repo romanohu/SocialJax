@@ -8,7 +8,6 @@ env_kwargs:
   payoff_matrix:
     - [1, 1, -2]
     - [1, 1, -2]
-  cnn: true
   jit: true
 wandb:
   project: socialjax_components_coin_game

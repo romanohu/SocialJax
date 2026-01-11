@@ -4,7 +4,6 @@ env_kwargs:
   num_inner_steps: 1000
   num_outer_steps: 1
   shared_rewards: false
-  cnn: true
   jit: true
   maxAppleGrowthRate: 0.05
   thresholdDepletion: 0.4

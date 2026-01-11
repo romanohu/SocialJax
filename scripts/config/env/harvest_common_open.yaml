@@ -4,7 +4,6 @@ env_kwargs:
   num_inner_steps: 1000
   num_outer_steps: 1
   shared_rewards: true
-  cnn: true
   jit: true
 wandb:
   project: socialjax_components_harvest_common_open

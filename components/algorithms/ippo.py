@@ -34,6 +34,12 @@ def _build_encoder_cfg(config: Dict) -> EncoderConfig:
         cnn_channels=tuple(config.get("CNN_CHANNELS", (32, 32, 32))),
         cnn_kernel_sizes=tuple(config.get("CNN_KERNEL_SIZES", ((5, 5), (3, 3), (3, 3)))),
         cnn_dense_size=int(config.get("CNN_DENSE_SIZE", 64)),
+        encoder_type=config.get("ENCODER_TYPE", "cnn"),
+        transformer_patch_size=int(config.get("TRANSFORMER_PATCH_SIZE", 4)),
+        transformer_layers=int(config.get("TRANSFORMER_LAYERS", 2)),
+        transformer_heads=int(config.get("TRANSFORMER_HEADS", 4)),
+        transformer_mlp_dim=int(config.get("TRANSFORMER_MLP_DIM", 128)),
+        transformer_embed_dim=int(config.get("TRANSFORMER_EMBED_DIM", 64)),
     )
 
 

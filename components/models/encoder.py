@@ -49,3 +49,52 @@ class CNNEncoder(nn.Module):
         )(x)
         x = activation(x)
         return x
+
+
+class TransformerEncoder(nn.Module):
+    patch_size: int = 4
+    num_layers: int = 2
+    num_heads: int = 4
+    mlp_dim: int = 128
+    embed_dim: int = 64
+    activation: str = "relu"
+
+    @nn.compact
+    def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
+        if x.ndim != 4:
+            raise ValueError("TransformerEncoder expects image input [B,H,W,C].")
+        activation = nn.relu if self.activation == "relu" else nn.tanh
+
+        x = nn.Conv(
+            features=self.embed_dim,
+            kernel_size=(self.patch_size, self.patch_size),
+            strides=(self.patch_size, self.patch_size),
+            kernel_init=orthogonal(np.sqrt(2.0)),
+            bias_init=constant(0.0),
+        )(x)
+        x = x.reshape((x.shape[0], -1, self.embed_dim))
+
+        pos_embed = self.param(
+            "pos_embed",
+            nn.initializers.normal(stddev=0.02),
+            (1, x.shape[1], self.embed_dim),
+        )
+        x = x + pos_embed
+
+        for _ in range(self.num_layers):
+            h = nn.LayerNorm()(x)
+            h = nn.MultiHeadDotProductAttention(
+                num_heads=self.num_heads,
+                qkv_features=self.embed_dim,
+                out_features=self.embed_dim,
+            )(h, h)
+            x = x + h
+
+            h = nn.LayerNorm()(x)
+            h = nn.Dense(self.mlp_dim)(h)
+            h = activation(h)
+            h = nn.Dense(self.embed_dim)(h)
+            x = x + h
+
+        x = jnp.mean(x, axis=1)
+        return x

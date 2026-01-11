@@ -37,4 +37,10 @@ def build_config(cfg: DictConfig) -> Dict[str, Any]:
     if cfg.independent_reward is not None:
         _set_nested(algorithm_cfg, "ENV_KWARGS.shared_rewards", not cfg.independent_reward)
 
+    encoder_type = str(algorithm_cfg.get("ENCODER_TYPE", "cnn")).lower()
+    if encoder_type in ("cnn", "transformer"):
+        _set_nested(algorithm_cfg, "ENV_KWARGS.cnn", True)
+    elif encoder_type == "mlp":
+        _set_nested(algorithm_cfg, "ENV_KWARGS.cnn", False)
+
     return algorithm_cfg

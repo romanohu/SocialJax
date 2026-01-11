@@ -84,8 +84,6 @@ Component runner notes:
 - It logs env info metrics (e.g. cleanup's cleaned_water) to wandb automatically.
 - It saves checkpoints under checkpoints/components/* by default.
 
-
-
 ---
 This software includes modified code from SocialJax.
 Changes were made by romanohu.

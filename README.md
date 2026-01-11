@@ -39,6 +39,10 @@ uv run python -c "import jax; print('backend:', jax.default_backend()); print('d
 ## run
 ### config
 Hyperparameters are managed by **hydra-core**. Please refer to the directories under algorithms/*/config/.
+New component-based runs use configs under:
+- scripts/config/algorithm/
+- scripts/config/env/
+- scripts/config/wandb/
 
 ### runner
 We provide a reusable training entrypoint under scripts/ backed by shared components for IPPO/MAPPO/SVO.
@@ -53,6 +57,15 @@ Override config values
 ```
 PYTHONPATH=. uv run python scripts/train.py algorithm.LR=0.0003 env.env_kwargs.num_agents=5
 ```
+Disable actual training (config check only)
+```
+PYTHONPATH=. uv run python scripts/train.py dry_run=true
+```
+
+Checkpoint output (component runner)
+```
+PYTHONPATH=. uv run python scripts/train.py algorithm.CHECKPOINT_DIR=checkpoints/components/ippo algorithm.CHECKPOINT_EVERY=10
+```
 
 ### result
 We use **wandb** for tracking learning progress.
@@ -61,6 +74,10 @@ To view learning logs/gifs/pkl files, please check:
 - /wandb
 - /checkpoints
 - /evaluation
+
+Component runner notes:
+- It logs env info metrics (e.g. cleanup's cleaned_water) to wandb automatically.
+- It saves checkpoints under checkpoints/components/* by default.
 
 
 

@@ -1,0 +1,17 @@
+defaults:
+  - algorithm: ippo
+  - env: cleanup
+  - _self_
+
+independent_policy: null
+independent_reward: null
+seed: null
+dry_run: false
+overrides: {}
+
+hydra:
+  run:
+    dir: .
+  output_subdir: null
+  job:
+    chdir: false

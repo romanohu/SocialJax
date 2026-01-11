@@ -40,6 +40,20 @@ uv run python -c "import jax; print('backend:', jax.default_backend()); print('d
 ### config
 Hyperparameters are managed by **hydra-core**. Please refer to the directories under algorithms/*/config/.
 
+### runner
+We provide a reusable training entrypoint under scripts/ that wraps existing algorithm scripts and configs.
+```
+PYTHONPATH=. uv run python scripts/train.py algorithm=ippo env=cleanup
+```
+Switch independent policy/reward
+```
+PYTHONPATH=. uv run python scripts/train.py algorithm=ippo env=cleanup independent_policy=true independent_reward=true
+```
+Override config values
+```
+PYTHONPATH=. uv run python scripts/train.py overrides.LR=0.0003 overrides.ENV_KWARGS.num_agents=5
+```
+
 ### result
 We use **wandb** for tracking learning progress.
 To view learning logs/gifs/pkl files, please check:

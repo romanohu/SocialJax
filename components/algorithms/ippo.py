@@ -12,6 +12,7 @@ import socialjax
 from socialjax.wrappers.baselines import LogWrapper
 
 from components.algorithms.networks import ActorCritic, EncoderConfig
+from components.training.checkpoint import save_checkpoint
 from components.training.logging import finalize_info_stats, init_wandb, update_info_stats
 from components.training.ppo import PPOBatch, compute_gae, update_ppo
 from components.training.utils import (
@@ -62,6 +63,9 @@ def make_train(config: Dict):
     def train(rng):
         wandb = init_wandb(config)
         log_enabled = wandb is not None
+        ckpt_dir = config.get("CHECKPOINT_DIR")
+        ckpt_every = int(config.get("CHECKPOINT_EVERY", 0))
+        ckpt_keep = int(config.get("CHECKPOINT_KEEP", 3))
 
         if not parameter_sharing:
             # Fallback path keeps Python loops for independent policies.
@@ -213,6 +217,14 @@ def make_train(config: Dict):
                     metrics["env_step"] = (update_step + 1) * num_steps * num_envs
                     wandb.log(metrics, step=metrics["env_step"])
 
+                if ckpt_dir and ckpt_every > 0 and ((update_step + 1) % ckpt_every == 0):
+                    save_checkpoint(
+                        ckpt_dir,
+                        update_step + 1,
+                        {"params": [state.params for state in train_state]},
+                        keep=ckpt_keep,
+                    )
+
             return train_state
 
         # Shared-policy path is fully JAX-compiled with scan/jit.
@@ -253,6 +265,11 @@ def make_train(config: Dict):
         def _log_callback(metrics):
             if log_enabled:
                 wandb.log(metrics, step=int(metrics["env_step"]))
+
+        def _save_callback(step, params, do_save):
+            if not ckpt_dir or ckpt_every <= 0 or not do_save:
+                return
+            save_checkpoint(ckpt_dir, int(step), {"params": params}, keep=ckpt_keep)
 
         def _env_step(carry, _):
             train_state, env_state, last_obs, rng = carry
@@ -360,7 +377,9 @@ def make_train(config: Dict):
             }
             for key in info_mean:
                 metrics[f"env/{key}"] = info_mean[key]
+            do_save = (update_step + 1) % ckpt_every == 0 if (ckpt_dir and ckpt_every > 0) else False
             jax.debug.callback(_log_callback, metrics)
+            jax.debug.callback(_save_callback, update_step + 1, train_state.params, do_save)
 
             return (train_state, env_state, last_obs, rng, update_step + 1), metrics
 

@@ -23,3 +23,7 @@ CNN_KERNEL_SIZES:
   - [3, 3]
   - [3, 3]
 CNN_DENSE_SIZE: 64
+
+CHECKPOINT_DIR: checkpoints/components/ippo
+CHECKPOINT_EVERY: 10
+CHECKPOINT_KEEP: 3

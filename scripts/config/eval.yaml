@@ -1,0 +1,20 @@
+defaults:
+  - algorithm: ippo
+  - env: clean_up
+  - _self_
+
+checkpoint_dir: null
+checkpoint_step: null
+output_dir: evaluation/components
+max_steps: 500
+render: true
+gif_fps: 12
+num_episodes: 1
+deterministic: false
+
+hydra:
+  run:
+    dir: .
+  output_subdir: null
+  job:
+    chdir: false

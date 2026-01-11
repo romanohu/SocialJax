@@ -67,6 +67,11 @@ Checkpoint output (component runner)
 PYTHONPATH=. uv run python scripts/train.py algorithm.CHECKPOINT_DIR=checkpoints/components/ippo algorithm.CHECKPOINT_EVERY=10
 ```
 
+Evaluation (GIF rendering)
+```
+PYTHONPATH=. uv run python scripts/eval.py algorithm=ippo env=clean_up checkpoint_dir=checkpoints/components/ippo
+```
+
 ### result
 We use **wandb** for tracking learning progress.
 To view learning logs/gifs/pkl files, please check:

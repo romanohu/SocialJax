@@ -12,6 +12,7 @@ import socialjax
 from socialjax.wrappers.baselines import LogWrapper
 
 from components.algorithms.networks import ActorCritic, EncoderConfig
+from components.training.logging import finalize_info_stats, init_wandb, update_info_stats
 from components.training.ppo import PPOBatch, compute_gae, update_ppo
 from components.training.utils import (
     flatten_obs,
@@ -59,6 +60,8 @@ def make_train(config: Dict):
     encoder_cfg = _build_encoder_cfg(config)
 
     def train(rng):
+        wandb = init_wandb(config)
+        log_enabled = wandb is not None
         # INIT NETWORK
         if parameter_sharing:
             network = ActorCritic(env.action_space().n, encoder_cfg)
@@ -120,6 +123,7 @@ def make_train(config: Dict):
             values_buf = []
             rewards_buf = []
             dones_buf = []
+            info_stats: Dict[str, Dict[str, float]] = {}
 
             for _ in range(num_steps):
                 if parameter_sharing:
@@ -154,6 +158,8 @@ def make_train(config: Dict):
                 )(step_keys, env_state, env_actions)
 
                 done_array = _done_dict_to_array(done, env.agents)
+                if log_enabled:
+                    update_info_stats(info_stats, info)
 
                 if parameter_sharing:
                     obs_buf.append(obs_batch)
@@ -278,6 +284,13 @@ def make_train(config: Dict):
                                 float(config["VF_COEF"]),
                             )
                             train_state[agent_idx] = new_state
+
+            if log_enabled:
+                metrics = finalize_info_stats(info_stats)
+                metrics["train/reward_mean"] = float(jnp.mean(jnp.stack(rewards_buf)))
+                metrics["update_step"] = update_step + 1
+                metrics["env_step"] = (update_step + 1) * num_steps * num_envs
+                wandb.log(metrics, step=metrics["env_step"])
 
         return train_state
 

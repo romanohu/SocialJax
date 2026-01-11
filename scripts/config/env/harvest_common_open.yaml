@@ -1,2 +1,8 @@
 env_name: harvest_common_open
-env_kwargs: {}
+env_kwargs:
+  num_agents: 7
+  num_inner_steps: 1000
+  num_outer_steps: 1
+  shared_rewards: true
+  cnn: true
+  jit: true

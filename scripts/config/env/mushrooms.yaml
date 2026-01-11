@@ -1,2 +1,12 @@
 env_name: mushrooms
-env_kwargs: {}
+env_kwargs:
+  num_agents: 6
+  num_inner_steps: 1000
+  num_outer_steps: 1
+  shared_rewards: true
+  regrow_rate_red: 0.25
+  regrow_rate_green: 0.4
+  regrow_rate_blue: 0.6
+  regrow_rate_orange: 1.0
+  cnn: true
+  jit: true

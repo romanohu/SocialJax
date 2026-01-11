@@ -1,6 +1,7 @@
 defaults:
   - algorithm: ippo
   - env: clean_up
+  - wandb: default
   - _self_
 
 independent_policy: null

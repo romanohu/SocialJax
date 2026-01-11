@@ -1,2 +1,13 @@
 env_name: clean_up
-env_kwargs: {}
+env_kwargs:
+  num_agents: 7
+  num_inner_steps: 1000
+  num_outer_steps: 1
+  shared_rewards: false
+  cnn: true
+  jit: true
+  maxAppleGrowthRate: 0.05
+  thresholdDepletion: 0.4
+  thresholdRestoration: 0.0
+  dirtSpawnProbability: 0.5
+  delayStartOfDirtSpawning: 50

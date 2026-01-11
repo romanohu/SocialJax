@@ -1,2 +1,12 @@
 env_name: coin_game
-env_kwargs: {}
+env_kwargs:
+  num_agents: 2
+  num_inner_steps: 1000
+  num_outer_steps: 1
+  shared_rewards: true
+  regrow_rate: 0.0005
+  payoff_matrix:
+    - [1, 1, -2]
+    - [1, 1, -2]
+  cnn: true
+  jit: true

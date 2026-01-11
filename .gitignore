@@ -1,7 +1,7 @@
 __pycache__/
 Fixed_gifs/
 outputs/
-wandb/
 checkpoints/
 *.pickle
 .venv/
+./wandb/

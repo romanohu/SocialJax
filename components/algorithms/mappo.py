@@ -136,7 +136,7 @@ def make_train(config: Dict):
         obs, env_state = jax.vmap(env.reset, in_axes=(0,))(reset_keys)
 
         if not parameter_sharing:
-            # Keep independent policy path in Python for now.
+            # Independent policy path stays in Python for now.
             for update_step in range(num_updates):
                 obs_buf = []
                 actions_buf = []
@@ -293,6 +293,7 @@ def make_train(config: Dict):
             )
 
         def _env_step(carry, _):
+            # Collect one environment step with centralized critic state.
             actor_state, critic_state, env_state, last_obs, rng = carry
             rng, action_rng, step_rng = jax.random.split(rng, 3)
 
@@ -328,6 +329,7 @@ def make_train(config: Dict):
             return (actor_state, critic_state, env_state, obs, rng), transition
 
         def _update_step(carry, _):
+            # Rollout + update block for a single PPO iteration.
             actor_state, critic_state, env_state, last_obs, rng, update_step = carry
             (actor_state, critic_state, env_state, last_obs, rng), traj = jax.lax.scan(
                 _env_step,

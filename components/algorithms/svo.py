@@ -108,7 +108,7 @@ def make_train(config: Dict):
         ckpt_keep = int(config.get("CHECKPOINT_KEEP", 3))
 
         if not parameter_sharing:
-            # Fallback path for independent policies.
+            # Independent policy path stays in Python for now.
             network = [ActorCritic(env.action_space().n, encoder_cfg) for _ in range(num_agents)]
             rng, init_rng = jax.random.split(rng)
             init_x = jnp.zeros((1, *(env.observation_space()[0]).shape))
@@ -325,6 +325,7 @@ def make_train(config: Dict):
             save_checkpoint(ckpt_dir, int(step), {"params": params}, keep=ckpt_keep)
 
         def _env_step(carry, _):
+            # Collect one environment step and apply SVO shaping.
             train_state, env_state, last_obs, rng = carry
             rng, action_rng, step_rng = jax.random.split(rng, 3)
             obs_batch = flatten_obs(last_obs)
@@ -356,6 +357,7 @@ def make_train(config: Dict):
             return (train_state, env_state, obs, rng), transition
 
         def _update_step(carry, _):
+            # Rollout + update block for a single PPO iteration.
             train_state, env_state, last_obs, rng, update_step = carry
             (train_state, env_state, last_obs, rng), traj = jax.lax.scan(
                 _env_step,

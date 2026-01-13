@@ -13,7 +13,7 @@ from socialjax.wrappers.baselines import LogWrapper
 
 from components.algorithms.networks import ActorCritic, EncoderConfig
 from components.training.checkpoint import save_checkpoint
-from components.training.logging import init_wandb
+from components.training.logging import init_wandb, log_metrics
 from components.training.ppo import PPOBatch, compute_gae, update_ppo
 from components.training.utils import (
     flatten_obs,
@@ -116,8 +116,7 @@ def make_train(config: Dict):
             obs, env_state = jax.vmap(env.reset, in_axes=(0,))(reset_keys)
 
             def _log_callback(metrics):
-                if log_enabled:
-                    wandb.log(metrics, step=int(metrics["env_step"]))
+                log_metrics(metrics, wandb if log_enabled else None)
 
             def _save_callback(step, params, do_save):
                 if not ckpt_dir or ckpt_every <= 0 or not do_save:
@@ -308,8 +307,7 @@ def make_train(config: Dict):
         obs, env_state = jax.vmap(env.reset, in_axes=(0,))(reset_keys)
 
         def _log_callback(metrics):
-            if log_enabled:
-                wandb.log(metrics, step=int(metrics["env_step"]))
+            log_metrics(metrics, wandb if log_enabled else None)
 
         def _save_callback(step, params, do_save):
             if not ckpt_dir or ckpt_every <= 0 or not do_save:

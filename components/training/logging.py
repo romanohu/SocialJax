@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
+from absl import logging as absl_logging
 import jax.numpy as jnp
 
 
@@ -25,16 +26,39 @@ def init_wandb(config: Dict[str, Any]) -> Optional[Any]:
         env_id = config.get("ENV_NAME", "env")
         name = f"{algo}_{env_id}"
 
-    wandb.init(
-        project=project,
-        entity=entity,
-        name=name,
-        group=group,
-        tags=tags,
-        mode=mode,
-        config=config,
-    )
+    try:
+        wandb.init(
+            project=project,
+            entity=entity,
+            name=name,
+            group=group,
+            tags=tags,
+            mode=mode,
+            config=config,
+        )
+    except Exception as exc:
+        absl_logging.warning("W&B init failed, continuing without W&B: %s", exc)
+        return None
     return wandb
+
+
+def log_metrics(metrics: Dict[str, Any], wandb: Optional[Any]) -> None:
+    if wandb is not None:
+        wandb.log(metrics, step=int(metrics.get("env_step", 0)))
+
+    update_step = metrics.get("update_step")
+    env_step = metrics.get("env_step")
+    reward = metrics.get("train/reward_mean")
+    parts = []
+    if update_step is not None:
+        parts.append(f"update={int(update_step)}")
+    if env_step is not None:
+        parts.append(f"env_step={int(env_step)}")
+    if reward is not None:
+        parts.append(f"reward_mean={float(reward):.4f}")
+    if not parts:
+        return
+    print(" | ".join(parts), flush=True)
 
 
 def update_info_stats(stats: Dict[str, Dict[str, float]], info: Dict[str, Any]) -> None:

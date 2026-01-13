@@ -13,7 +13,7 @@ from socialjax.wrappers.baselines import LogWrapper, MAPPOWorldStateWrapper
 
 from components.algorithms.networks import Actor, Critic, EncoderConfig
 from components.training.checkpoint import save_checkpoint
-from components.training.logging import init_wandb
+from components.training.logging import init_wandb, log_metrics
 from components.training.ppo import PPOBatch, compute_gae, update_actor, update_value
 from components.training.utils import (
     build_world_state,
@@ -144,8 +144,7 @@ def make_train(config: Dict):
         if not parameter_sharing:
             # Independent policy path fully in JAX, including per-agent updates.
             def _log_callback(metrics):
-                if log_enabled:
-                    wandb.log(metrics, step=int(metrics["env_step"]))
+                log_metrics(metrics, wandb if log_enabled else None)
 
             def _save_callback(step, actor_params, critic_params, do_save):
                 if not ckpt_dir or ckpt_every <= 0 or not do_save:
@@ -346,8 +345,7 @@ def make_train(config: Dict):
             return final_carry[0], final_carry[1]
 
         def _log_callback(metrics):
-            if log_enabled:
-                wandb.log(metrics, step=int(metrics["env_step"]))
+            log_metrics(metrics, wandb if log_enabled else None)
 
         def _save_callback(step, actor_params, critic_params, do_save):
             if not ckpt_dir or ckpt_every <= 0 or not do_save:

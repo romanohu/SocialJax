@@ -1,9 +1,12 @@
 """Evaluate trained policies and optionally render GIFs."""
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Dict, List
+import warnings
 
+from absl import logging as absl_logging
 import hydra
 import jax
 import jax.numpy as jnp
@@ -12,10 +15,19 @@ from omegaconf import DictConfig
 from PIL import Image
 
 import socialjax
-from components.algorithms.networks import Actor, ActorCritic, EncoderConfig
+from components.algorithms.networks import Actor, ActorCritic, Critic, EncoderConfig
 from components.training.checkpoint import load_checkpoint
 from components.training.config import build_config
-from components.training.utils import flatten_obs, unflatten_actions
+from components.training.utils import build_world_state, flatten_obs, unflatten_actions
+
+os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
+absl_logging.set_verbosity(absl_logging.ERROR)
+absl_logging.set_stderrthreshold("error")
+warnings.filterwarnings(
+    "ignore",
+    message=r"scatter inputs have incompatible types:.*",
+    category=FutureWarning,
+)
 
 
 def _build_encoder_cfg(config: Dict) -> EncoderConfig:
@@ -25,6 +37,12 @@ def _build_encoder_cfg(config: Dict) -> EncoderConfig:
         cnn_channels=tuple(config.get("CNN_CHANNELS", (32, 32, 32))),
         cnn_kernel_sizes=tuple(config.get("CNN_KERNEL_SIZES", ((5, 5), (3, 3), (3, 3)))),
         cnn_dense_size=int(config.get("CNN_DENSE_SIZE", 64)),
+        encoder_type=config.get("ENCODER_TYPE", "cnn"),
+        transformer_patch_size=int(config.get("TRANSFORMER_PATCH_SIZE", 4)),
+        transformer_layers=int(config.get("TRANSFORMER_LAYERS", 2)),
+        transformer_heads=int(config.get("TRANSFORMER_HEADS", 4)),
+        transformer_mlp_dim=int(config.get("TRANSFORMER_MLP_DIM", 128)),
+        transformer_embed_dim=int(config.get("TRANSFORMER_EMBED_DIM", 64)),
     )
 
 
@@ -56,18 +74,44 @@ def main(cfg: DictConfig) -> None:
     if ckpt_dir is None:
         raise ValueError("checkpoint_dir is required for evaluation")
 
-    payload = load_checkpoint(ckpt_dir, cfg.checkpoint_step)
     encoder_cfg = _build_encoder_cfg(config)
     num_agents = env.num_agents
+    rng = jax.random.PRNGKey(0)
+    parameter_sharing = bool(config.get("PARAMETER_SHARING", True))
+    init_obs = jnp.zeros((1, *(env.observation_space()[0]).shape))
 
     if algorithm == "mappo":
-        network = Actor(env.action_space().n, encoder_cfg)
+        actor_net = Actor(env.action_space().n, encoder_cfg)
+        critic_net = Critic(encoder_cfg)
+        rng, actor_rng, critic_rng = jax.random.split(rng, 3)
+        actor_params = actor_net.init(actor_rng, init_obs)
+
+        world_shape = build_world_state(
+            jnp.zeros((1, num_agents, *env.observation_space()[0].shape))
+        ).shape[1:]
+        critic_init = jnp.zeros((1, *world_shape))
+        critic_params = critic_net.init(critic_rng, critic_init)
+
+        if parameter_sharing:
+            target = {"actor_params": actor_params, "critic_params": critic_params}
+        else:
+            target = {
+                "actor_params": [actor_params] * num_agents,
+                "critic_params": critic_params,
+            }
+        payload = load_checkpoint(ckpt_dir, cfg.checkpoint_step, target=target)
+        network = actor_net
         params = payload["actor_params"]
     else:
         network = ActorCritic(env.action_space().n, encoder_cfg)
+        rng, init_rng = jax.random.split(rng)
+        base_params = network.init(init_rng, init_obs)
+        if parameter_sharing:
+            target = {"params": base_params}
+        else:
+            target = {"params": [base_params] * num_agents}
+        payload = load_checkpoint(ckpt_dir, cfg.checkpoint_step, target=target)
         params = payload["params"]
-
-    rng = jax.random.PRNGKey(0)
 
     for episode in range(cfg.num_episodes):
         rng, reset_rng = jax.random.split(rng)

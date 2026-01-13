@@ -4,4 +4,5 @@ outputs/
 checkpoints/
 *.pickle
 .venv/
-./wandb/
+wandb/
+runs/

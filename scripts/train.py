@@ -1,16 +1,26 @@
 """Hydra entrypoint for reusable SocialJax training runs."""
 from __future__ import annotations
 
-import hydra
-from omegaconf import DictConfig
+import os
+from datetime import datetime
+import warnings
 
+from absl import logging as absl_logging
+import hydra
 import jax
+from omegaconf import DictConfig
 
 from components.algorithms import ippo, mappo, svo
 from components.training.config import build_config
 
-from absl import logging as absl_logging
+os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
 absl_logging.set_verbosity(absl_logging.ERROR)
+absl_logging.set_stderrthreshold("error")
+warnings.filterwarnings(
+    "ignore",
+    message=r"scatter inputs have incompatible types:.*",
+    category=FutureWarning,
+)
 
 
 _ALGO_MAP = {
@@ -26,6 +36,18 @@ def main(cfg: DictConfig) -> None:
     algo_name = cfg.algorithm.name
     if algo_name not in _ALGO_MAP:
         raise ValueError(f"Unknown algorithm '{algo_name}'.")
+
+    run_id = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    run_dir = os.path.join("runs", run_id)
+    config["RUN_DIR"] = run_dir
+    ckpt_dir = config.get("CHECKPOINT_DIR")
+    if ckpt_dir:
+        if os.path.isabs(ckpt_dir):
+            try:
+                ckpt_dir = os.path.relpath(ckpt_dir, os.getcwd())
+            except ValueError:
+                ckpt_dir = os.path.basename(ckpt_dir)
+        config["CHECKPOINT_DIR"] = os.path.join(run_dir, ckpt_dir)
 
     train_fn = _ALGO_MAP[algo_name](config)
     if cfg.dry_run:

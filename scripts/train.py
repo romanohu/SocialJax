@@ -3,9 +3,10 @@ from __future__ import annotations
 
 import os
 from datetime import datetime
+import sys
 import warnings
 
-from absl import logging as absl_logging
+from loguru import logger
 import hydra
 import jax
 from omegaconf import DictConfig
@@ -14,8 +15,12 @@ from components.algorithms import ippo, mappo, svo
 from components.training.config import build_config
 
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
-absl_logging.set_verbosity(absl_logging.ERROR)
-absl_logging.set_stderrthreshold("error")
+logger.remove()
+logger.add(
+    sys.stderr,
+    level="INFO",
+    format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}",
+)
 warnings.filterwarnings(
     "ignore",
     message=r"scatter inputs have incompatible types:.*",

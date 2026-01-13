@@ -4,9 +4,10 @@ from __future__ import annotations
 import os
 from pathlib import Path
 from typing import Dict, List
+import sys
 import warnings
 
-from absl import logging as absl_logging
+from loguru import logger
 import hydra
 import jax
 import jax.numpy as jnp
@@ -21,8 +22,12 @@ from components.training.config import build_config
 from components.training.utils import build_world_state, flatten_obs, unflatten_actions
 
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
-absl_logging.set_verbosity(absl_logging.ERROR)
-absl_logging.set_stderrthreshold("error")
+logger.remove()
+logger.add(
+    sys.stderr,
+    level="INFO",
+    format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}",
+)
 warnings.filterwarnings(
     "ignore",
     message=r"scatter inputs have incompatible types:.*",

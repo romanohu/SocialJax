@@ -3,8 +3,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
-from absl import logging as absl_logging
 import jax.numpy as jnp
+from loguru import logger
 
 
 def init_wandb(config: Dict[str, Any]) -> Optional[Any]:
@@ -37,7 +37,7 @@ def init_wandb(config: Dict[str, Any]) -> Optional[Any]:
             config=config,
         )
     except Exception as exc:
-        absl_logging.warning("W&B init failed, continuing without W&B: %s", exc)
+        logger.warning("W&B init failed, continuing without W&B: {}", exc)
         return None
     return wandb
 
@@ -58,7 +58,7 @@ def log_metrics(metrics: Dict[str, Any], wandb: Optional[Any]) -> None:
         parts.append(f"reward_mean={float(reward):.4f}")
     if not parts:
         return
-    print(" | ".join(parts), flush=True)
+    logger.info(" | ".join(parts))
 
 
 def update_info_stats(stats: Dict[str, Dict[str, float]], info: Dict[str, Any]) -> None:

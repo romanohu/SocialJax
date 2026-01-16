@@ -37,6 +37,7 @@ uv run python -c "import jax; print('backend:', jax.default_backend()); print('d
 ```
 
 ## run
+if you use **pueue**, you must set ```env``` before PYTHONPATH.
 ### config
 Hyperparameters are managed by **hydra-core**. Please refer to the directories under algorithms/*/config/.
 New component-based runs use configs under:
@@ -72,12 +73,13 @@ Evaluation (GIF rendering)
 PYTHONPATH=. uv run python scripts/eval.py algorithm=ippo env=clean_up checkpoint_dir=checkpoints/components/ippo
 ```
 
+
 ### result
 We use **wandb** for tracking learning progress.
 To view learning artifacts, please check:
 - /runs/YYYY-MM-DD_HH-MM-SS (training runs, checkpoints)
 - /wandb
-- /evaluation/components (evaluation GIFs)
+- /runs/YYYY-MM-DD_HH-MM-SS/checkpoints/<algorithm>/evaluation/components (evaluation GIFs)
 
 Component runner notes:
 - It logs env info metrics (e.g. cleanup's cleaned_water) to wandb automatically.

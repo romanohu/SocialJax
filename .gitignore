@@ -7,3 +7,5 @@ checkpoints/
 wandb/
 runs/
 evaluation/
+eval.log
+train.log

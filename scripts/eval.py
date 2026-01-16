@@ -69,6 +69,15 @@ def _save_gif(frames: List[np.ndarray], path: Path, fps: int) -> None:
     )
 
 
+def _resolve_output_dir(output_dir: str | None, ckpt_dir: str) -> Path:
+    if output_dir:
+        base = Path(output_dir)
+        if base.is_absolute():
+            return base
+        return Path(ckpt_dir) / base
+    return Path(ckpt_dir) / "evaluation"
+
+
 @hydra.main(version_base=None, config_path="config", config_name="eval")
 def main(cfg: DictConfig) -> None:
     config = build_config(cfg)
@@ -78,6 +87,7 @@ def main(cfg: DictConfig) -> None:
     ckpt_dir = cfg.checkpoint_dir or config.get("CHECKPOINT_DIR")
     if ckpt_dir is None:
         raise ValueError("checkpoint_dir is required for evaluation")
+    output_root = _resolve_output_dir(cfg.output_dir, ckpt_dir)
 
     encoder_cfg = _build_encoder_cfg(config)
     num_agents = env.num_agents
@@ -154,7 +164,7 @@ def main(cfg: DictConfig) -> None:
                 break
 
         if cfg.render and frames:
-            output_dir = Path(cfg.output_dir) / config["ENV_NAME"] / algorithm
+            output_dir = output_root / config["ENV_NAME"] / algorithm
             gif_path = output_dir / f"episode_{episode}.gif"
             _save_gif(frames, gif_path, cfg.gif_fps)
 

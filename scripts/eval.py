@@ -138,7 +138,7 @@ def main(cfg: DictConfig) -> None:
                 frames.append(frame)
 
             if isinstance(params, list):
-                obs_batch = [obs[i] for i in range(num_agents)]
+                obs_batch = [obs[i][None, ...] for i in range(num_agents)]
                 actions = []
                 for i in range(num_agents):
                     rng, action_rng = jax.random.split(rng)
@@ -146,7 +146,8 @@ def main(cfg: DictConfig) -> None:
                         dist = network.apply(params[i], obs_batch[i])
                     else:
                         dist, _ = network.apply(params[i], obs_batch[i])
-                    actions.append(_select_action(dist, action_rng, cfg.deterministic))
+                    action = _select_action(dist, action_rng, cfg.deterministic)
+                    actions.append(jnp.squeeze(action, axis=0))
                 env_actions = actions
             else:
                 obs_batch = flatten_obs(obs[None, ...])
@@ -164,7 +165,7 @@ def main(cfg: DictConfig) -> None:
                 break
 
         if cfg.render and frames:
-            output_dir = output_root / config["ENV_NAME"] / algorithm
+            output_dir = output_root
             gif_path = output_dir / f"episode_{episode}.gif"
             _save_gif(frames, gif_path, cfg.gif_fps)
 

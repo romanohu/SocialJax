@@ -6,22 +6,15 @@ from typing import Dict, List
 import jax
 import jax.numpy as jnp
 import optax
-from flax.training.train_state import TrainState
 
 import socialjax
 from socialjax.wrappers.baselines import LogWrapper
 
 from components.algorithms.networks import ActorCritic, EncoderConfig
 from components.shaping.svo import svo_deviation_penalty, svo_linear_combination
-from components.training.checkpoint import save_checkpoint
+from components.training.checkpoint import save_agent_checkpoints
 from components.training.logging import init_wandb, log_metrics
 from components.training.ppo import PPOBatch, compute_gae, update_ppo
-from components.training.utils import (
-    flatten_obs,
-    to_actor_dones,
-    to_actor_rewards,
-    unflatten_actions,
-)
 
 
 def _done_dict_to_array(done: Dict, agents: List[int]) -> jnp.ndarray:
@@ -67,12 +60,9 @@ def make_train(config: Dict):
     num_envs = int(config["NUM_ENVS"])
     num_steps = int(config["NUM_STEPS"])
     num_agents = env.num_agents
-    parameter_sharing = bool(config.get("PARAMETER_SHARING", True))
+    parameter_sharing = False
 
-    if parameter_sharing:
-        num_actors = num_envs * num_agents
-    else:
-        num_actors = num_envs
+    num_actors = num_envs
 
     num_updates = (
         int(config["TOTAL_TIMESTEPS"]) // num_steps // num_envs
@@ -155,10 +145,10 @@ def make_train(config: Dict):
                 if not ckpt_dir or ckpt_every <= 0 or not do_save:
                     return
                 params_list = [
-                    jax.tree_util.tree_map(lambda x, i=i: x[i], params)
+                    {"params": jax.tree_util.tree_map(lambda x, i=i: x[i], params)}
                     for i in range(num_agents)
                 ]
-                save_checkpoint(ckpt_dir, int(step), {"params": params_list}, keep=ckpt_keep)
+                save_agent_checkpoints(ckpt_dir, int(step), params_list, keep=ckpt_keep)
 
             def _clip_grads(grads, max_norm):
                 g_norm = optax.global_norm(grads)
@@ -365,188 +355,5 @@ def make_train(config: Dict):
 
             final_carry, _ = jax.jit(_train_independent)(init_carry)
             return final_carry[0]
-
-        network = ActorCritic(env.action_space().n, encoder_cfg)
-        rng, init_rng = jax.random.split(rng)
-        init_x = jnp.zeros((1, *(env.observation_space()[0]).shape))
-        params = network.init(init_rng, init_x)
-
-        if config.get("ANNEAL_LR", False):
-            def lr_schedule(count):
-                frac = (
-                    1.0
-                    - (count // (int(config["NUM_MINIBATCHES"]) * int(config["UPDATE_EPOCHS"])))
-                    / num_updates
-                )
-                return float(config["LR"]) * frac
-
-            tx = optax.chain(
-                optax.clip_by_global_norm(float(config["MAX_GRAD_NORM"])),
-                optax.adam(learning_rate=lr_schedule, eps=1e-5),
-            )
-        else:
-            tx = optax.chain(
-                optax.clip_by_global_norm(float(config["MAX_GRAD_NORM"])),
-                optax.adam(float(config["LR"]), eps=1e-5),
-            )
-
-        train_state = TrainState.create(
-            apply_fn=network.apply,
-            params=params,
-            tx=tx,
-        )
-
-        rng, reset_rng = jax.random.split(rng)
-        reset_keys = jax.random.split(reset_rng, num_envs)
-        obs, env_state = jax.vmap(env.reset, in_axes=(0,))(reset_keys)
-
-        def _log_callback(metrics):
-            log_metrics(metrics, wandb if log_enabled else None)
-
-        def _save_callback(step, params, do_save):
-            if not ckpt_dir or ckpt_every <= 0 or not do_save:
-                return
-            save_checkpoint(ckpt_dir, int(step), {"params": params}, keep=ckpt_keep)
-
-        def _env_step(carry, _):
-            # Collect one environment step and apply SVO shaping.
-            train_state, env_state, last_obs, rng = carry
-            rng, action_rng, step_rng = jax.random.split(rng, 3)
-            obs_batch = flatten_obs(last_obs)
-            pi, value = network.apply(train_state.params, obs_batch)
-            action = pi.sample(seed=action_rng)
-            logp = pi.log_prob(action)
-            env_actions = unflatten_actions(action, num_envs, num_agents)
-
-            step_keys = jax.random.split(step_rng, num_envs)
-            obs, env_state, reward, done, info = jax.vmap(
-                env.step, in_axes=(0, 0, 0)
-            )(step_keys, env_state, env_actions)
-
-            done_array = _done_dict_to_array(done, env.agents)
-            shaped_reward, theta = _shape_reward(reward)
-            info_mean = jax.tree_util.tree_map(lambda x: jnp.mean(x), info)
-
-            transition = (
-                obs_batch,
-                action,
-                logp,
-                value,
-                to_actor_rewards(shaped_reward),
-                to_actor_rewards(reward),
-                to_actor_dones(done_array),
-                theta,
-                info_mean,
-            )
-            return (train_state, env_state, obs, rng), transition
-
-        def _update_step(carry, _):
-            # Rollout + update block for a single PPO iteration.
-            train_state, env_state, last_obs, rng, update_step = carry
-            (train_state, env_state, last_obs, rng), traj = jax.lax.scan(
-                _env_step,
-                (train_state, env_state, last_obs, rng),
-                None,
-                length=num_steps,
-            )
-            (
-                obs_arr,
-                actions_arr,
-                logp_arr,
-                values_arr,
-                rewards_arr,
-                extrinsic_arr,
-                dones_arr,
-                thetas_arr,
-                info_means,
-            ) = traj
-
-            last_obs_batch = flatten_obs(last_obs)
-            _, last_value = network.apply(train_state.params, last_obs_batch)
-
-            advantages, returns = compute_gae(
-                rewards_arr,
-                values_arr,
-                dones_arr,
-                last_value,
-                float(config["GAMMA"]),
-                float(config["GAE_LAMBDA"]),
-            )
-
-            batch = PPOBatch(
-                obs=obs_arr.reshape((-1, *obs_arr.shape[2:])),
-                actions=actions_arr.reshape((-1,)),
-                old_log_probs=logp_arr.reshape((-1,)),
-                advantages=advantages.reshape((-1,)),
-                returns=returns.reshape((-1,)),
-            )
-
-            batch_size = batch.actions.shape[0]
-
-            def _update_epoch(carry, _):
-                train_state, rng = carry
-                rng, perm_rng = jax.random.split(rng)
-                perm = jax.random.permutation(perm_rng, batch_size)
-
-                def _minibatch(state, idx):
-                    start = idx * minibatch_size
-                    mb_idx = jax.lax.dynamic_slice(
-                        perm,
-                        (start,),
-                        (minibatch_size,),
-                    )
-                    mbatch = PPOBatch(
-                        obs=batch.obs[mb_idx],
-                        actions=batch.actions[mb_idx],
-                        old_log_probs=batch.old_log_probs[mb_idx],
-                        advantages=batch.advantages[mb_idx],
-                        returns=batch.returns[mb_idx],
-                    )
-                    state, _ = update_ppo(
-                        state,
-                        mbatch,
-                        float(config["CLIP_EPS"]),
-                        float(config["ENT_COEF"]),
-                        float(config["VF_COEF"]),
-                    )
-                    return state, None
-
-                train_state, _ = jax.lax.scan(
-                    _minibatch,
-                    train_state,
-                    jnp.arange(int(config["NUM_MINIBATCHES"])),
-                )
-                return (train_state, rng), None
-
-            (train_state, rng), _ = jax.lax.scan(
-                _update_epoch,
-                (train_state, rng),
-                None,
-                length=int(config["UPDATE_EPOCHS"]),
-            )
-
-            info_mean = jax.tree_util.tree_map(lambda x: jnp.mean(x, axis=0), info_means)
-            metrics = {
-                "train/svo_reward_mean": jnp.mean(rewards_arr),
-                "train/extrinsic_reward_mean": jnp.mean(extrinsic_arr),
-                "svo/theta_mean": jnp.mean(thetas_arr),
-                "update_step": update_step + 1,
-                "env_step": (update_step + 1) * num_steps * num_envs,
-            }
-            for key in info_mean:
-                metrics[f"env/{key}"] = info_mean[key]
-            do_save = (update_step + 1) % ckpt_every == 0 if (ckpt_dir and ckpt_every > 0) else False
-            jax.debug.callback(_log_callback, metrics)
-            jax.debug.callback(_save_callback, update_step + 1, train_state.params, do_save)
-
-            return (train_state, env_state, last_obs, rng, update_step + 1), metrics
-
-        init_carry = (train_state, env_state, obs, rng, 0)
-
-        def _train_shared(carry):
-            return jax.lax.scan(_update_step, carry, None, length=num_updates)
-
-        final_carry, _ = jax.jit(_train_shared)(init_carry)
-        return final_carry[0]
 
     return train

@@ -1,5 +1,8 @@
 name: ippo
 
+independent_policy: null
+independent_reward: null
+
 NUM_ENVS: 10
 NUM_STEPS: 1000
 TOTAL_TIMESTEPS: 100000

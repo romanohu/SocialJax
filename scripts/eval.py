@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Dict, List
+from typing import Any, Dict, List
 import sys
 import warnings
 
@@ -17,7 +17,7 @@ from PIL import Image
 
 import socialjax
 from components.algorithms.networks import Actor, ActorCritic, Critic, EncoderConfig
-from components.training.checkpoint import load_checkpoint
+from components.training.checkpoint import agent_checkpoint_dir, load_checkpoint
 from components.training.config import build_config
 from components.training.utils import build_world_state, flatten_obs, unflatten_actions
 
@@ -78,6 +78,28 @@ def _resolve_output_dir(output_dir: str | None, ckpt_dir: str) -> Path:
     return Path(ckpt_dir) / "evaluation"
 
 
+def _has_agent_checkpoints(ckpt_dir: str) -> bool:
+    return Path(agent_checkpoint_dir(ckpt_dir, 0)).exists()
+
+
+def _load_agent_payloads(
+    ckpt_dir: str,
+    step: int | None,
+    num_agents: int,
+    key: str,
+    target: Any,
+) -> List:
+    payloads = []
+    for agent_idx in range(num_agents):
+        payload = load_checkpoint(
+            agent_checkpoint_dir(ckpt_dir, agent_idx),
+            step,
+            target={key: target},
+        )
+        payloads.append(payload[key])
+    return payloads
+
+
 @hydra.main(version_base=None, config_path="config", config_name="eval")
 def main(cfg: DictConfig) -> None:
     config = build_config(cfg)
@@ -107,26 +129,33 @@ def main(cfg: DictConfig) -> None:
         critic_init = jnp.zeros((1, *world_shape))
         critic_params = critic_net.init(critic_rng, critic_init)
 
-        if parameter_sharing:
-            target = {"actor_params": actor_params, "critic_params": critic_params}
-        else:
-            target = {
-                "actor_params": [actor_params] * num_agents,
-                "critic_params": critic_params,
-            }
+        if not parameter_sharing:
+            raise ValueError("MAPPO uses shared actor policies; set independent_policy=false.")
+        target = {"actor_params": actor_params, "critic_params": critic_params}
         payload = load_checkpoint(ckpt_dir, cfg.checkpoint_step, target=target)
-        network = actor_net
         params = payload["actor_params"]
+        network = actor_net
     else:
         network = ActorCritic(env.action_space().n, encoder_cfg)
         rng, init_rng = jax.random.split(rng)
         base_params = network.init(init_rng, init_obs)
         if parameter_sharing:
             target = {"params": base_params}
+            payload = load_checkpoint(ckpt_dir, cfg.checkpoint_step, target=target)
+            params = payload["params"]
         else:
-            target = {"params": [base_params] * num_agents}
-        payload = load_checkpoint(ckpt_dir, cfg.checkpoint_step, target=target)
-        params = payload["params"]
+            if _has_agent_checkpoints(ckpt_dir):
+                params = _load_agent_payloads(
+                    ckpt_dir,
+                    cfg.checkpoint_step,
+                    num_agents,
+                    "params",
+                    base_params,
+                )
+            else:
+                target = {"params": [base_params] * num_agents}
+                payload = load_checkpoint(ckpt_dir, cfg.checkpoint_step, target=target)
+                params = payload["params"]
 
     for episode in range(cfg.num_episodes):
         rng, reset_rng = jax.random.split(rng)

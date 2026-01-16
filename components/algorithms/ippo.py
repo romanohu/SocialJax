@@ -12,7 +12,7 @@ import socialjax
 from socialjax.wrappers.baselines import LogWrapper
 
 from components.algorithms.networks import ActorCritic, EncoderConfig
-from components.training.checkpoint import save_checkpoint
+from components.training.checkpoint import save_agent_checkpoints, save_checkpoint
 from components.training.logging import init_wandb, log_metrics
 from components.training.ppo import PPOBatch, compute_gae, update_ppo
 from components.training.utils import (
@@ -125,10 +125,10 @@ def make_train(config: Dict):
                 if not ckpt_dir or ckpt_every <= 0 or not do_save:
                     return
                 params_list = [
-                    jax.tree_util.tree_map(lambda x, i=i: x[i], params)
+                    {"params": jax.tree_util.tree_map(lambda x, i=i: x[i], params)}
                     for i in range(num_agents)
                 ]
-                save_checkpoint(ckpt_dir, int(step), {"params": params_list}, keep=ckpt_keep)
+                save_agent_checkpoints(ckpt_dir, int(step), params_list, keep=ckpt_keep)
 
             def _env_step(carry, _):
                 params, opt_state, env_state, last_obs, rng = carry

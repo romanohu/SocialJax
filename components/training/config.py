@@ -35,10 +35,14 @@ def build_config(cfg: DictConfig) -> Dict[str, Any]:
         algorithm_cfg["SEED"] = seed
 
     independent_policy = cfg.get("independent_policy")
+    if independent_policy is None:
+        independent_policy = algorithm_cfg.get("independent_policy")
     if independent_policy is not None:
         algorithm_cfg["PARAMETER_SHARING"] = not independent_policy
 
     independent_reward = cfg.get("independent_reward")
+    if independent_reward is None:
+        independent_reward = algorithm_cfg.get("independent_reward")
     if independent_reward is not None:
         _set_nested(algorithm_cfg, "ENV_KWARGS.shared_rewards", not independent_reward)
 

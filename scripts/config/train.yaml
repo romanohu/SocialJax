@@ -4,8 +4,6 @@ defaults:
   - wandb: default
   - _self_
 
-independent_policy: null
-independent_reward: null
 seed: 0
 dry_run: false
 

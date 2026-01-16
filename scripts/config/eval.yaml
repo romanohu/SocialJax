@@ -3,9 +3,6 @@ defaults:
   - env: clean_up
   - _self_
 
-independent_policy: null
-independent_reward: null
-
 checkpoint_dir: null
 checkpoint_step: null
 # Relative paths are resolved under checkpoint_dir.

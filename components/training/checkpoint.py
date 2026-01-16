@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import os
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from flax.training import checkpoints
 
@@ -17,6 +17,31 @@ def save_checkpoint(ckpt_dir: str, step: int, payload: Dict[str, Any], keep: int
     ckpt_dir = _normalize_ckpt_dir(ckpt_dir)
     os.makedirs(ckpt_dir, exist_ok=True)
     checkpoints.save_checkpoint(ckpt_dir, payload, step, keep=keep, overwrite=True)
+
+
+def agent_checkpoint_dir(ckpt_dir: str, agent_idx: int) -> str:
+    ckpt_dir = _normalize_ckpt_dir(ckpt_dir)
+    return os.path.join(ckpt_dir, f"agent_{agent_idx}")
+
+
+def critic_checkpoint_dir(ckpt_dir: str) -> str:
+    ckpt_dir = _normalize_ckpt_dir(ckpt_dir)
+    return os.path.join(ckpt_dir, "critic")
+
+
+def save_agent_checkpoints(
+    ckpt_dir: str,
+    step: int,
+    payloads: List[Dict[str, Any]],
+    keep: int = 3,
+) -> None:
+    for agent_idx, payload in enumerate(payloads):
+        save_checkpoint(
+            agent_checkpoint_dir(ckpt_dir, agent_idx),
+            step,
+            payload,
+            keep=keep,
+        )
 
 
 def load_checkpoint(

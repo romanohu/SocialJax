@@ -9,7 +9,7 @@ checkpoint_dir: null
 checkpoint_step: null
 # Relative paths are resolved under checkpoint_dir.
 output_dir: ""
-max_steps: 500
+max_steps: 1000
 render: true
 gif_fps: 12
 num_episodes: 1

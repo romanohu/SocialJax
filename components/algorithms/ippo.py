@@ -325,7 +325,7 @@ def make_train(config: Dict):
                 env.step, in_axes=(0, 0, 0)
             )(step_keys, env_state, env_actions)
 
-            done_array = _done_dict_to_array(done, env.agents)
+            done_array = done_dict_to_array(done, env.agents)
             info_mean = jax.tree_util.tree_map(lambda x: jnp.mean(x), info)
 
             transition = (

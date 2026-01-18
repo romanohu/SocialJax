@@ -9,9 +9,10 @@ from typing import Any
 def done_dict_to_array(done: Dict, agents: List[int]) -> jnp.ndarray:
     return jnp.stack([done[str(a)] for a in agents], axis=1)
 
+
+## independent policy utils
 def stack_agent_params(base_params: Any, num_agents: int):
     return jax.tree_util.tree_map(lambda x: jnp.stack([x] * num_agents, axis=0), base_params)
-
 
 def broadcast_agent_leaves(tree: Any, num_agents: int):
     def _maybe_broadcast(x):

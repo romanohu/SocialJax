@@ -138,7 +138,7 @@ def make_train(config: Dict):
                 done_array = done_dict_to_array(done, env.agents)
                 # Apply SVO reward shaping.
                 shaped_reward, theta = _shape_reward(reward)
-                info_mean = jax.tree_util.tree_map(lambda x: jnp.mean(x), info)
+                info_mean = jax.tree_util.tree_map(lambda x: jnp.mean(x, axis=0), info)
 
                 transition = (
                     obs_agents,
@@ -294,7 +294,14 @@ def make_train(config: Dict):
                 for agent_idx, value in enumerate(extrinsic_per_agent):
                     metrics[f"agent/{agent_idx}/extrinsic_reward_mean"] = value
                 for key in info_mean:
-                    metrics[f"env/{key}"] = info_mean[key]
+                    value = info_mean[key]
+                    metrics[f"env/{key}"] = jnp.mean(value)
+                    if value.ndim >= 1 and value.shape[0] == num_agents:
+                        per_agent = value
+                        if value.ndim > 1:
+                            per_agent = jnp.mean(value, axis=tuple(range(1, value.ndim)))
+                        for agent_idx, agent_value in enumerate(per_agent):
+                            metrics[f"agent/{agent_idx}/{key}"] = agent_value
                 do_save = (update_step + 1) % ckpt_every == 0 if (ckpt_dir and ckpt_every > 0) else False
                 jax.debug.callback(_log_callback, metrics)
                 jax.debug.callback(_save_callback, update_step + 1, params, do_save)

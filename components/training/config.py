@@ -58,10 +58,9 @@ def build_config(cfg: DictConfig) -> Dict[str, Any]:
         _set_nested(algorithm_cfg, "ENV_KWARGS.shared_rewards", not independent_reward)
 
     encoder_type = str(algorithm_cfg.get("ENCODER_TYPE", "cnn")).lower()
-    if encoder_type in ("cnn", "transformer"):
-        _set_nested(algorithm_cfg, "ENV_KWARGS.cnn", True)
-    elif encoder_type == "mlp":
-        _set_nested(algorithm_cfg, "ENV_KWARGS.cnn", False)
+    cnn_override = {"cnn": True, "transformer": True, "mlp": False}.get(encoder_type)
+    if cnn_override is not None:
+        _set_nested(algorithm_cfg, "ENV_KWARGS.cnn", cnn_override)
 
     ckpt_dir = algorithm_cfg.get("CHECKPOINT_DIR")
     if ckpt_dir and not os.path.isabs(ckpt_dir):

@@ -1,39 +1,30 @@
 """Evaluate trained policies and optionally render GIFs."""
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import Any, Dict, List
-import sys
-import warnings
 
 from loguru import logger
 import hydra
 import jax
 import jax.numpy as jnp
 import numpy as np
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 from PIL import Image
 
 import socialjax
 from components.algorithms.networks import Actor, ActorCritic, Critic, build_encoder_config
 from components.training.checkpoint import agent_checkpoint_dir, load_checkpoint
 from components.training.config import build_config
+from components.training.entrypoint import (
+    add_file_logger,
+    configure_console_logging,
+    save_hydra_config,
+)
 from components.training.logging import finalize_info_stats, update_info_stats
 from components.training.utils import build_world_state, flatten_obs, unflatten_actions
 
-os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
-logger.remove()
-logger.add(
-    sys.stderr,
-    level="INFO",
-    format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}",
-)
-warnings.filterwarnings(
-    "ignore",
-    message=r"scatter inputs have incompatible types:.*",
-    category=FutureWarning,
-)
+configure_console_logging()
 
 
 def _select_action(dist, rng, deterministic: bool):
@@ -96,13 +87,8 @@ def main(cfg: DictConfig) -> None:
         raise ValueError("checkpoint_dir is required for evaluation")
     output_root = _resolve_output_dir(cfg.output_dir, ckpt_dir)
     output_root.mkdir(parents=True, exist_ok=True)
-    logger.add(
-        output_root / "eval.log",
-        level="INFO",
-        format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}",
-        mode="w",
-    )
-    OmegaConf.save(cfg, output_root / "hydra.yaml", resolve=True)
+    add_file_logger(output_root / "eval.log")
+    save_hydra_config(cfg, output_root / "hydra.yaml")
 
     encoder_cfg = build_encoder_config(config)
     num_agents = env.num_agents

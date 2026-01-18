@@ -3,27 +3,17 @@ from __future__ import annotations
 
 import os
 from datetime import datetime
-import sys
-import warnings
-
-from loguru import logger
 import hydra
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 
 from components.training.config import build_config
+from components.training.entrypoint import (
+    add_file_logger,
+    configure_console_logging,
+    save_hydra_config,
+)
 
-os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
-logger.remove()
-logger.add(
-    sys.stderr,
-    level="INFO",
-    format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}",
-)
-warnings.filterwarnings(
-    "ignore",
-    message=r"scatter inputs have incompatible types:.*",
-    category=FutureWarning,
-)
+configure_console_logging()
 
 
 _ALGO_NAMES = {"ippo", "mappo", "svo"}
@@ -63,22 +53,17 @@ def main(cfg: DictConfig) -> None:
         config["CHECKPOINT_DIR"] = os.path.join(run_dir, ckpt_dir)
 
     os.makedirs(run_dir, exist_ok=True)
-    logger.add(
-        os.path.join(run_dir, "train.log"),
-        level="INFO",
-        format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}",
-        mode="w",
-    )
+    add_file_logger(os.path.join(run_dir, "train.log"))
 
     if cfg.dry_run:
-        OmegaConf.save(cfg, os.path.join(run_dir, "hydra.yaml"), resolve=True)
+        save_hydra_config(cfg, os.path.join(run_dir, "hydra.yaml"))
         return
     import jax
 
     algo_map = _load_algorithms()
     train_fn = algo_map[algo_name](config)
     train_fn(jax.random.PRNGKey(config["SEED"]))
-    OmegaConf.save(cfg, os.path.join(run_dir, "hydra.yaml"), resolve=True)
+    save_hydra_config(cfg, os.path.join(run_dir, "hydra.yaml"))
 
 
 if __name__ == "__main__":

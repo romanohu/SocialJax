@@ -1,7 +1,7 @@
 """SVO-enhanced PPO implementation for SocialJax environments."""
 from __future__ import annotations
 
-from typing import Dict, List
+from typing import Dict
 
 import jax
 import jax.numpy as jnp
@@ -10,15 +10,13 @@ import optax
 import socialjax
 from socialjax.wrappers.baselines import LogWrapper
 
+from components.algorithms.independent import broadcast_agent_leaves, stack_agent_params
 from components.algorithms.networks import ActorCritic, build_encoder_config
+from components.algorithms.utils import done_dict_to_array
 from components.shaping.svo import svo_deviation_penalty, svo_linear_combination
 from components.training.checkpoint import save_agent_checkpoints
 from components.training.logging import init_wandb, log_metrics
-from components.training.ppo import PPOBatch, compute_gae, update_ppo
-
-
-def _done_dict_to_array(done: Dict, agents: List[int]) -> jnp.ndarray:
-    return jnp.stack([done[str(a)] for a in agents], axis=1)
+from components.training.ppo import PPOBatch, compute_gae, update_ppo, update_ppo_params
 
 
 def _normalize_svo_param(value, num_agents, name):
@@ -87,9 +85,7 @@ def make_train(config: Dict):
             rng, init_rng = jax.random.split(rng)
             init_x = jnp.zeros((1, *(env.observation_space()[0]).shape))
             base_params = network.init(init_rng, init_x)
-            params = jax.tree_util.tree_map(
-                lambda x: jnp.stack([x] * num_agents, axis=0), base_params
-            )
+            params = stack_agent_params(base_params, num_agents)
 
             if config.get("ANNEAL_LR", False):
                 def lr_schedule(count):
@@ -104,19 +100,8 @@ def make_train(config: Dict):
             else:
                 tx = optax.adam(float(config["LR"]), eps=1e-5)
 
-            def _broadcast_agent_leaves(tree):
-                def _maybe_broadcast(x):
-                    if hasattr(x, "ndim"):
-                        if x.ndim == 0:
-                            return jnp.broadcast_to(x, (num_agents,))
-                        if x.shape[0] != num_agents:
-                            return jnp.broadcast_to(x, (num_agents, *x.shape))
-                    return x
-
-                return jax.tree_util.tree_map(_maybe_broadcast, tree)
-
             opt_state = tx.init(params)
-            opt_state = _broadcast_agent_leaves(opt_state)
+            opt_state = broadcast_agent_leaves(opt_state, num_agents)
 
             rng, reset_rng = jax.random.split(rng)
             reset_keys = jax.random.split(reset_rng, num_envs)
@@ -135,31 +120,6 @@ def make_train(config: Dict):
                 ]
                 save_agent_checkpoints(ckpt_dir, int(step), params_list, keep=ckpt_keep)
 
-            def _clip_grads(grads, max_norm):
-                g_norm = optax.global_norm(grads)
-                scale = jnp.minimum(1.0, max_norm / (g_norm + 1e-6))
-                return jax.tree_util.tree_map(lambda g: g * scale, grads)
-
-            def _update_ppo(params, opt_state, batch, clip_eps, ent_coef, vf_coef):
-                def _loss(p, b):
-                    dist, value = network.apply(p, b.obs)
-                    log_probs = dist.log_prob(b.actions)
-                    entropy = dist.entropy().mean()
-                    ratios = jnp.exp(log_probs - b.old_log_probs)
-                    unclipped = ratios * b.advantages
-                    clipped = jnp.clip(
-                        ratios, 1.0 - clip_eps, 1.0 + clip_eps
-                    ) * b.advantages
-                    policy_loss = -jnp.mean(jnp.minimum(unclipped, clipped))
-                    value_loss = jnp.mean(jnp.square(b.returns - value))
-                    return policy_loss + vf_coef * value_loss - ent_coef * entropy
-
-                grads = jax.grad(_loss)(params, batch)
-                grads = _clip_grads(grads, float(config["MAX_GRAD_NORM"]))
-                updates, new_opt_state = tx.update(grads, opt_state, params)
-                new_params = optax.apply_updates(params, updates)
-                return new_params, new_opt_state
-
             def _env_step(carry, _):
                 params, opt_state, env_state, last_obs, rng = carry
                 rng, action_rng, step_rng = jax.random.split(rng, 3)
@@ -176,7 +136,7 @@ def make_train(config: Dict):
                     env.step, in_axes=(0, 0, 0)
                 )(step_keys, env_state, env_actions)
 
-                done_array = _done_dict_to_array(done, env.agents)
+                done_array = done_dict_to_array(done, env.agents)
                 # Apply SVO reward shaping.
                 shaped_reward, theta = _shape_reward(reward)
                 info_mean = jax.tree_util.tree_map(lambda x: jnp.mean(x), info)
@@ -289,13 +249,16 @@ def make_train(config: Dict):
                                 advantages=mbatch.advantages[agent_idx],
                                 returns=mbatch.returns[agent_idx],
                             )
-                            return _update_ppo(
+                            return update_ppo_params(
+                                network.apply,
                                 p,
                                 o,
+                                tx,
                                 b,
                                 float(config["CLIP_EPS"]),
                                 float(config["ENT_COEF"]),
                                 float(config["VF_COEF"]),
+                                max_grad_norm=float(config["MAX_GRAD_NORM"]),
                             )
 
                         params, opt_state = jax.vmap(_update_agent)(agent_ids)

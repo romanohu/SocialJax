@@ -1,7 +1,7 @@
 """MAPPO implementation for SocialJax environments."""
 from __future__ import annotations
 
-from typing import Dict, List
+from typing import Dict
 
 import jax
 import jax.numpy as jnp
@@ -12,6 +12,7 @@ import socialjax
 from socialjax.wrappers.baselines import LogWrapper, MAPPOWorldStateWrapper
 
 from components.algorithms.networks import Actor, Critic, build_encoder_config
+from components.algorithms.utils import done_dict_to_array
 from components.training.checkpoint import save_checkpoint
 from components.training.logging import init_wandb, log_metrics
 from components.training.ppo import PPOBatch, compute_gae, update_actor, update_value
@@ -22,10 +23,6 @@ from components.training.utils import (
     to_actor_rewards,
     unflatten_actions,
 )
-
-
-def _done_dict_to_array(done: Dict, agents: List[int]) -> jnp.ndarray:
-    return jnp.stack([done[str(a)] for a in agents], axis=1)
 
 
 def make_train(config: Dict):
@@ -140,7 +137,7 @@ def make_train(config: Dict):
                 env.step, in_axes=(0, 0, 0)
             )(step_keys, env_state, env_actions)
 
-            done_array = _done_dict_to_array(done, env.agents)
+            done_array = done_dict_to_array(done, env.agents)
             info_mean = jax.tree_util.tree_map(lambda x: jnp.mean(x), info)
 
             transition = (

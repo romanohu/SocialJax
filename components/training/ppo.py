@@ -7,6 +7,7 @@ from typing import Callable, Tuple
 import distrax
 import jax
 import jax.numpy as jnp
+import optax
 
 
 @dataclass(frozen=True)
@@ -143,3 +144,35 @@ def update_value(train_state, obs: jnp.ndarray, returns: jnp.ndarray):
     loss, grads = grad_fn(train_state.params, obs, returns)
     new_state = train_state.apply_gradients(grads=grads)
     return new_state, {"value_loss": loss}
+
+
+def update_ppo_params(
+    apply_fn: Callable,
+    params,
+    opt_state,
+    tx,
+    batch: PPOBatch,
+    clip_eps: float,
+    ent_coef: float,
+    vf_coef: float,
+    max_grad_norm: float | None = None,
+):
+    def _loss(p, b):
+        dist, value = apply_fn(p, b.obs)
+        log_probs = dist.log_prob(b.actions)
+        entropy = dist.entropy().mean()
+        ratios = jnp.exp(log_probs - b.old_log_probs)
+        unclipped = ratios * b.advantages
+        clipped = jnp.clip(ratios, 1.0 - clip_eps, 1.0 + clip_eps) * b.advantages
+        policy_loss = -jnp.mean(jnp.minimum(unclipped, clipped))
+        value_loss = jnp.mean(jnp.square(b.returns - value))
+        return policy_loss + vf_coef * value_loss - ent_coef * entropy
+
+    grads = jax.grad(_loss)(params, batch)
+    if max_grad_norm is not None:
+        g_norm = optax.global_norm(grads)
+        scale = jnp.minimum(1.0, max_grad_norm / (g_norm + 1e-6))
+        grads = jax.tree_util.tree_map(lambda g: g * scale, grads)
+    updates, new_opt_state = tx.update(grads, opt_state, params)
+    new_params = optax.apply_updates(params, updates)
+    return new_params, new_opt_state

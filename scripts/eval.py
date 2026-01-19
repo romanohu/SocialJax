@@ -93,7 +93,11 @@ def main(cfg: DictConfig) -> None:
     encoder_cfg = build_encoder_config(config)
     num_agents = env.num_agents
     rng = jax.random.PRNGKey(0)
-    parameter_sharing = bool(config.get("PARAMETER_SHARING", True))
+    parameter_sharing_cfg = config.get("PARAMETER_SHARING")
+    if parameter_sharing_cfg is None:
+        parameter_sharing = False if algorithm == "svo" else True
+    else:
+        parameter_sharing = bool(parameter_sharing_cfg)
     init_obs = jnp.zeros((1, *(env.observation_space()[0]).shape))
 
     if algorithm == "mappo":
@@ -132,6 +136,11 @@ def main(cfg: DictConfig) -> None:
                     base_params,
                 )
             else:
+                if algorithm == "svo":
+                    raise ValueError(
+                        "SVO evaluation expects per-agent checkpoints (agent_0, agent_1, ...). "
+                        "Provide per-agent checkpoints or set PARAMETER_SHARING=true."
+                    )
                 target = {"params": [base_params] * num_agents}
                 payload = load_checkpoint(ckpt_dir, cfg.checkpoint_step, target=target)
                 params = payload["params"]

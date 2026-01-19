@@ -73,6 +73,18 @@ Evaluation (GIF rendering)
 uv run scripts/eval.py algorithm=ippo env=clean_up checkpoint_dir=checkpoints/components/ippo
 ```
 
+### Agent Color
+Color Palette List
+| Preview | RGB Value | HEX Code | Color Name / Description |
+| :---: | :--- | :--- | :--- |
+| <img src="https://singlecolorimage.com/get/CC2828/50x20" > | `(204, 40, 40)` | `#CC2828` | Vivid Red |
+| <img src="https://singlecolorimage.com/get/CCB428/50x20" > | `(204, 180, 40)` | `#CCB428` | Golden Yellow |
+| <img src="https://singlecolorimage.com/get/57CC28/50x20" > | `(87, 204, 40)` | `#57CC28` | Lime Green |
+| <img src="https://singlecolorimage.com/get/28CC86/50x20" > | `(40, 204, 134)` | `#28CC86` | Emerald Green |
+| <img src="https://singlecolorimage.com/get/2886CC/50x20" > | `(40, 134, 204)` | `#2886CC` | Sky Blue |
+| <img src="https://singlecolorimage.com/get/5728CC/50x20" > | `(87, 40, 204)` | `#5728CC` | Deep Violet |
+| <img src="https://singlecolorimage.com/get/CC28B4/50x20" > | `(204, 40, 180)` | `#CC28B4` | Magenta / Rose |
+
 
 ### result
 We use **wandb** for tracking learning progress.

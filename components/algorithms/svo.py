@@ -166,6 +166,7 @@ def make_train(config: Dict):
                     None,
                     length=num_steps,
                 )
+                
                 (
                     obs_arr,
                     actions_arr,

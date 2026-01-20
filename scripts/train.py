@@ -44,6 +44,10 @@ def main(cfg: DictConfig) -> None:
     run_id = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     run_dir = os.path.join("runs", run_id)
     config["RUN_DIR"] = run_dir
+    wandb_cfg = config.setdefault("WANDB", {})
+    if wandb_cfg.get("name") is None:
+        # Keep W&B run names aligned with runs/<run_id>.
+        wandb_cfg["name"] = run_id
     ckpt_dir = config.get("CHECKPOINT_DIR")
     if ckpt_dir:
         if os.path.isabs(ckpt_dir):

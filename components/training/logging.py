@@ -44,8 +44,9 @@ def init_wandb(config: Dict[str, Any]) -> Optional[Any]:
 
 def log_metrics(metrics: Dict[str, Any], wandb: Optional[Any]) -> None:
     if wandb is not None:
+        # send metrics to wandb
         wandb.log(metrics, step=int(metrics.get("env_step", 0)))
-
+    # Print Simple Summary
     update_step = metrics.get("update_step")
     env_step = metrics.get("env_step")
     reward = metrics.get("train/reward_mean")

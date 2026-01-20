@@ -58,6 +58,7 @@ def make_train(config: Dict):
 
     num_actors = num_envs
 
+    # number of loops in jax.lax.scan
     num_updates = (
         int(config["TOTAL_TIMESTEPS"]) // num_steps // num_envs
     )
@@ -129,6 +130,7 @@ def make_train(config: Dict):
             def _log_callback(metrics):
                 log_metrics(metrics, wandb if log_enabled else None)
 
+            # For saving timing, save checkpoints with parameters separated by agent
             def _save_callback(step, params, do_save):
                 if not ckpt_dir or ckpt_every <= 0 or not do_save:
                     return
@@ -141,10 +143,13 @@ def make_train(config: Dict):
             def _env_step(carry, _):
                 params, opt_state, env_state, last_obs, rng = carry
                 rng, action_rng, step_rng = jax.random.split(rng, 3)
+                # (env, agent, …) → (agent, env, …)
                 obs_agents = jnp.swapaxes(last_obs, 0, 1)
                 agent_rngs = jax.random.split(action_rng, num_agents)
                 pi, value = jax.vmap(network.apply, in_axes=(0, 0))(params, obs_agents)
+                # Sample actions from each agent's distribution
                 action = jax.vmap(lambda dist, key: dist.sample(seed=key))(pi, agent_rngs)
+                # Log probability of action
                 logp = pi.log_prob(action)
                 env_actions = list(action)
 
@@ -175,13 +180,14 @@ def make_train(config: Dict):
             def _update_step(carry, _):
                 params, opt_state, env_state, last_obs, rng, update_step = carry
                 # Roll out trajectories for NUM_STEPS.
+                # traj is pushed onto the second return value
                 (params, opt_state, env_state, last_obs, rng), traj = jax.lax.scan(
                     _env_step,
                     (params, opt_state, env_state, last_obs, rng),
                     None,
                     length=num_steps,
                 )
-                
+                # Trajectory data for num_steps
                 (
                     obs_arr,
                     actions_arr,
@@ -193,8 +199,10 @@ def make_train(config: Dict):
                     thetas_arr,
                     info_means,
                 ) = traj
-
+                
+                # (env, agent, …) → (agent, env, …)
                 last_obs_agents = jnp.swapaxes(last_obs, 0, 1)
+                # Compute only the value estimates for each agent based on the final observation
                 _, last_values = jax.vmap(network.apply, in_axes=(0, 0))(params, last_obs_agents)
 
                 rewards_agents = jnp.swapaxes(rewards_arr, 0, 1)
@@ -218,13 +226,14 @@ def make_train(config: Dict):
                 logp_agents = jnp.swapaxes(logp_arr, 0, 1)
 
                 batch = PPOBatch(
+                    # collapse (time, env) into a single dimension
                     obs=obs_agents.reshape((num_agents, -1, *obs_agents.shape[3:])),
                     actions=actions_agents.reshape((num_agents, -1)),
                     old_log_probs=logp_agents.reshape((num_agents, -1)),
                     advantages=advantages.reshape((num_agents, -1)),
                     returns=returns.reshape((num_agents, -1)),
                 )
-
+                # Number of samples per agent
                 batch_size = batch.actions.shape[1]
                 num_minibatches = int(config["NUM_MINIBATCHES"])
 
@@ -241,6 +250,7 @@ def make_train(config: Dict):
                     state, rng = carry
                     rng, perm_rng = jax.random.split(rng)
                     agent_rngs = jax.random.split(perm_rng, num_agents)
+                    # Prepares shuffled indices for PPO mini-batch updates, organized by agent
                     perm = jax.vmap(
                         lambda key: jax.random.permutation(key, batch_size)
                     )(agent_rngs)
@@ -282,7 +292,7 @@ def make_train(config: Dict):
 
                         params, opt_state = jax.vmap(_update_agent)(agent_ids)
                         return (params, opt_state), None
-
+                    # only updating parameters, don't use a stack.
                     state, _ = jax.lax.scan(
                         _minibatch,
                         state,
@@ -298,8 +308,8 @@ def make_train(config: Dict):
                     length=int(config["UPDATE_EPOCHS"]),
                 )
 
-                info_mean = jax.tree_util.tree_map(lambda x: jnp.mean(x, axis=0), info_means)
                 # Log metrics and optionally save checkpoints.
+                info_mean = jax.tree_util.tree_map(lambda x: jnp.mean(x, axis=0), info_means)
                 metrics = {
                     "train/svo_reward_mean": jnp.mean(rewards_arr),
                     "train/extrinsic_reward_mean": jnp.mean(extrinsic_arr),
@@ -323,6 +333,7 @@ def make_train(config: Dict):
                         for agent_idx, agent_value in enumerate(per_agent):
                             metrics[f"agent/{agent_idx}/{key}"] = agent_value
                 do_save = (update_step + 1) % ckpt_every == 0 if (ckpt_dir and ckpt_every > 0) else False
+                # passing metrics to Python-side for log processing
                 jax.debug.callback(_log_callback, metrics)
                 jax.debug.callback(_save_callback, update_step + 1, params, do_save)
 
@@ -331,8 +342,9 @@ def make_train(config: Dict):
             init_carry = (params, opt_state, env_state, obs, rng, 0)
 
             def _train_independent(carry):
+                # Function to optimize loops for JAX
                 return jax.lax.scan(_update_step, carry, None, length=num_updates)
-
+            # Compile functions in XLA for faster execution
             final_carry, _ = jax.jit(_train_independent)(init_carry)
             return final_carry[0]
 

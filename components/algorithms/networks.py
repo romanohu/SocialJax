@@ -75,7 +75,7 @@ def _build_encoder(cfg: EncoderConfig, obs_shape: Sequence[int]) -> nn.Module:
 class ActorCritic(nn.Module):
     action_dim: int
     encoder_cfg: EncoderConfig
-    # Define layers directly within __call__
+    # Define layers directly within __call__(== forward)
     @nn.compact
     def __call__(self, x: jnp.ndarray):
         embedding = _build_encoder(self.encoder_cfg, x.shape[1:])(x)

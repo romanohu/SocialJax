@@ -75,7 +75,7 @@ def _build_encoder(cfg: EncoderConfig, obs_shape: Sequence[int]) -> nn.Module:
 class ActorCritic(nn.Module):
     action_dim: int
     encoder_cfg: EncoderConfig
-
+    # Define layers directly within __call__
     @nn.compact
     def __call__(self, x: jnp.ndarray):
         embedding = _build_encoder(self.encoder_cfg, x.shape[1:])(x)
@@ -93,6 +93,7 @@ class ActorCritic(nn.Module):
             activation=self.encoder_cfg.activation,
         )
         value = critic_head(embedding)
+        # pi represents the probability distribution over discrete actions, and value represents the value of a state
         return pi, value
 
 

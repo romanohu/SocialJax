@@ -28,6 +28,7 @@ def _normalize_svo_param(value, num_agents, name):
         if arr.shape != (num_agents,):
             raise ValueError(f"{name} must have shape ({num_agents},), got {arr.shape}")
         return arr
+    # fill an array of length equal to the number of agents with a specific value
     return jnp.full((num_agents,), float(value), dtype=jnp.float32)
 
 
@@ -41,10 +42,18 @@ def _build_target_mask(target_agents, num_agents):
 def make_train(config: Dict):
     env = socialjax.make(config["ENV_NAME"], **config.get("ENV_KWARGS", {}))
     env = LogWrapper(env, replace_info=False)
+    """
+    env: 
+        Type: Subclass of multi_agent_env.py MultiAgentEnv
+        Attributes: num_agents, observation_spaces, action_spaces
+        Main Methods: reset(key) -> (obs, state), 
+                      step(key, state, actions) -> (obs, state, rewards, dones, infos)
+    """
 
     num_envs = int(config["NUM_ENVS"])
     num_steps = int(config["NUM_STEPS"])
     num_agents = env.num_agents
+    # PS doesn't make sense in SVO
     parameter_sharing = False
 
     num_actors = num_envs
@@ -64,6 +73,7 @@ def make_train(config: Dict):
     svo_angles = _normalize_svo_param(
         config.get("SVO_ANGLE_DEGREES", 45), num_agents, "SVO_ANGLE_DEGREES"
     )
+    # Generate a mask where only the specified agent positions are True
     svo_target_mask = _build_target_mask(config.get("SVO_TARGET_AGENTS"), num_agents)
 
     encoder_cfg = build_encoder_config(config)
@@ -87,9 +97,12 @@ def make_train(config: Dict):
             network = ActorCritic(env.action_space().n, encoder_cfg)
             rng, init_rng = jax.random.split(rng)
             init_x = jnp.zeros((1, *(env.observation_space()[0]).shape))
+            # initialization
             base_params = network.init(init_rng, init_x)
+            # (num_agents, …)
             params = load_agent_init_params(config, num_agents, base_params)
-
+            
+            # Switch between "fixed" learning rate and "linear decay" learning rate
             if config.get("ANNEAL_LR", False):
                 def lr_schedule(count):
                     frac = (
@@ -98,17 +111,19 @@ def make_train(config: Dict):
                         / num_updates
                     )
                     return float(config["LR"]) * frac
-
+                # Pass the learning rate schedule function to optax.adam for dynamic management
                 tx = optax.adam(learning_rate=lr_schedule, eps=1e-5)
             else:
                 tx = optax.adam(float(config["LR"]), eps=1e-5)
 
             opt_state = tx.init(params)
+            # (num_agents, …)
             opt_state = broadcast_agent_leaves(opt_state, num_agents)
 
             rng, reset_rng = jax.random.split(rng)
             reset_keys = jax.random.split(reset_rng, num_envs)
             # Reset envs to start the rollout.
+            # (obs_batch, state_batch) == ((num_envs, …),  (num_envs, …))
             obs, env_state = jax.vmap(env.reset, in_axes=(0,))(reset_keys)
 
             def _log_callback(metrics):

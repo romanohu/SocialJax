@@ -13,16 +13,6 @@ def mean_others(rewards: jnp.ndarray) -> jnp.ndarray:
     return (sum_rewards - rewards) / (rewards.shape[1] - 1)
 
 
-def reward_angle(rewards: jnp.ndarray) -> jnp.ndarray:
-    """Compute reward angle theta per agent.
-
-    rewards: shape [batch, num_agents]
-    """
-    r_i = rewards
-    r_others = mean_others(rewards)
-    return jnp.arctan2(r_others, r_i)
-
-
 def svo_linear_combination(
     rewards: jnp.ndarray,
     svo_degrees: jnp.ndarray,
@@ -38,24 +28,6 @@ def svo_linear_combination(
     r_i = rewards
     r_others = mean_others(rewards)
     shaped = jnp.cos(theta) * r_i + jnp.sin(theta) * r_others
-    if target_mask is None:
-        return shaped, theta
-    mask = target_mask.reshape((1, -1))
-    return jnp.where(mask, shaped, rewards), theta
-
-
-def svo_deviation_penalty(
-    rewards: jnp.ndarray,
-    ideal_degrees: jnp.ndarray,
-    w: jnp.ndarray,
-    target_mask: Optional[jnp.ndarray] = None,
-) -> Tuple[jnp.ndarray, jnp.ndarray]:
-    """Deviation penalty shaping used by existing SVO scripts."""
-    theta = reward_angle(rewards)
-    ideal = jnp.deg2rad(ideal_degrees).reshape((1, -1))
-    w = w.reshape((1, -1))
-    angle_deviation = jnp.abs(theta - ideal)
-    shaped = rewards - rewards.shape[1] * w * angle_deviation
     if target_mask is None:
         return shaped, theta
     mask = target_mask.reshape((1, -1))

@@ -16,7 +16,7 @@ from components.algorithms.utils import (
     done_dict_to_array,
     load_agent_init_params,
 )
-from components.shaping.svo import svo_deviation_penalty, svo_linear_combination
+from components.shaping.svo import svo_linear_combination
 from components.training.checkpoint import save_agent_checkpoints
 from components.training.logging import init_wandb, log_metrics
 from components.training.ppo import PPOBatch, compute_gae, update_ppo, update_ppo_params
@@ -67,11 +67,6 @@ def make_train(config: Dict):
         num_envs * num_steps // int(config["NUM_MINIBATCHES"])
     )
 
-    svo_mode = config.get("SVO_MODE", "linear")
-    svo_w = _normalize_svo_param(config.get("SVO_W", 0.5), num_agents, "SVO_W")
-    svo_ideal = _normalize_svo_param(
-        config.get("SVO_IDEAL_ANGLE_DEGREES", 45), num_agents, "SVO_IDEAL_ANGLE_DEGREES"
-    )
     svo_angles = _normalize_svo_param(
         config.get("SVO_ANGLE_DEGREES", 45), num_agents, "SVO_ANGLE_DEGREES"
     )
@@ -81,10 +76,7 @@ def make_train(config: Dict):
     encoder_cfg = build_encoder_config(config)
 
     def _shape_reward(reward: jnp.ndarray):
-        if svo_mode == "linear":
-            shaped, theta = svo_linear_combination(reward, svo_angles, svo_target_mask)
-        else:
-            shaped, theta = svo_deviation_penalty(reward, svo_ideal, svo_w, svo_target_mask)
+        shaped, theta = svo_linear_combination(reward, svo_angles, svo_target_mask)
         return shaped, theta
 
     def train(rng):

@@ -6,7 +6,7 @@ from typing import Any, Dict, List
 
 from flax.training import checkpoints
 
-
+# Normalize to absolute path
 def _normalize_ckpt_dir(ckpt_dir: str) -> str:
     if os.path.isabs(ckpt_dir):
         return ckpt_dir
@@ -51,5 +51,6 @@ def load_checkpoint(
 ) -> Dict[str, Any]:
     ckpt_dir = _normalize_ckpt_dir(ckpt_dir)
     if step is None:
+    # Function to load Flax checkpoints and restore parameters
         return checkpoints.restore_checkpoint(ckpt_dir, target=target)
     return checkpoints.restore_checkpoint(ckpt_dir, target=target, step=step)

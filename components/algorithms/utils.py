@@ -45,15 +45,18 @@ def _resolve_init_agent_ids(value, count):
         resolved.append(None if item is None else int(item))
     return resolved
 
-
+# (num_agents, …)
 def _stack_params_list(params_list):
     return jax.tree_util.tree_map(lambda *xs: jnp.stack(xs, axis=0), *params_list)
 
 
 def load_agent_init_params(config: Dict, num_agents: int, base_params: Any):
+    # Whether to warm start
     init_dir = config.get("INIT_CHECKPOINT_DIR")
     if not init_dir:
+        # initialize all agents with the same weight
         return stack_agent_params(base_params, num_agents)
+    # determine which agent to load the initial checkpoint from
     agent_ids = _resolve_init_agent_ids(
         config.get("INIT_AGENT_SOURCE_IDS"),
         num_agents,

@@ -35,8 +35,9 @@ def compute_gae(
     num_steps = rewards.shape[0]
     advantages = []
     gae = jnp.zeros_like(last_value)
-
+    # Scan in reverse order
     for t in reversed(range(num_steps)):
+        # by multiplying this mask with next_value, we ensure that terminal states do not use the next state's value
         mask = 1.0 - dones[t]
         next_value = last_value if t == num_steps - 1 else values[t + 1]
         delta = rewards[t] + gamma * next_value * mask - values[t]
@@ -167,12 +168,14 @@ def update_ppo_params(
         policy_loss = -jnp.mean(jnp.minimum(unclipped, clipped))
         value_loss = jnp.mean(jnp.square(b.returns - value))
         return policy_loss + vf_coef * value_loss - ent_coef * entropy
-
+    # Gradient Calculation
     grads = jax.grad(_loss)(params, batch)
     if max_grad_norm is not None:
+        # Gradient Clip
         g_norm = optax.global_norm(grads)
         scale = jnp.minimum(1.0, max_grad_norm / (g_norm + 1e-6))
         grads = jax.tree_util.tree_map(lambda g: g * scale, grads)
+    # Gradient → (converted using Adam, etc.) → Update amount → Parameter update
     updates, new_opt_state = tx.update(grads, opt_state, params)
     new_params = optax.apply_updates(params, updates)
     return new_params, new_opt_state

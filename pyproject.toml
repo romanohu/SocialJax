@@ -6,6 +6,8 @@ readme = "README.md"
 requires-python = "==3.10.*"
 
 dependencies = [
+  "optuna>=4.7.0",
+  "ray[data,default,serve,train,tune]>=2.53.0",
   "requests>=2.32.3,<3.0.0",
 ]
 
